@@ -1,16 +1,16 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// RESPONSIVE CANVAS
+// RESPONSIVE
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
-  roadWidth = canvas.width * 0.7; // wider road for mobile
+  roadWidth = canvas.width * 0.7;
   roadX = (canvas.width - roadWidth) / 2;
   laneWidth = roadWidth / 4;
 
-  carWidth = laneWidth * 0.7; // always fit inside lane
+  carWidth = laneWidth * 0.6;
   carHeight = carWidth * 1.2;
 
   player.y = canvas.height - carHeight - 20;
@@ -44,7 +44,6 @@ let carWidth, carHeight;
 let player = {
   lane: 1,
   x: 0,
-  targetX: 0,
   y: 0
 };
 
@@ -62,44 +61,40 @@ let spawnTimer = 0;
 
 let shakeTime = 0;
 
-// CONTROLS
-let keys = {};
-
-document.addEventListener("keydown", e => {
-  if (e.key === "ArrowLeft" && player.lane > 0) moveLeft();
-  if (e.key === "ArrowRight" && player.lane < 3) moveRight();
-});
-
-// MOBILE CONTROLS (FIXED)
-document.getElementById("leftBtn").addEventListener("touchstart", (e) => {
-  e.preventDefault();
-  moveLeft();
-});
-
-document.getElementById("rightBtn").addEventListener("touchstart", (e) => {
-  e.preventDefault();
-  moveRight();
-});
-
-// MOVE FUNCTIONS (NO JUMP BUG)
-function moveLeft() {
-  if (player.lane > 0) {
-    player.lane--;
-    player.targetX = getLaneX(player.lane);
-  }
-}
-
-function moveRight() {
-  if (player.lane < 3) {
-    player.lane++;
-    player.targetX = getLaneX(player.lane);
-  }
-}
-
 // LANE POSITION
 function getLaneX(lane) {
   return roadX + lane * laneWidth + (laneWidth - carWidth) / 2;
 }
+
+// CONTROLS (INSTANT)
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft" && player.lane > 0) {
+    player.lane--;
+    player.x = getLaneX(player.lane);
+  }
+
+  if (e.key === "ArrowRight" && player.lane < 3) {
+    player.lane++;
+    player.x = getLaneX(player.lane);
+  }
+});
+
+// MOBILE (FIXED)
+document.getElementById("leftBtn").addEventListener("touchstart", e => {
+  e.preventDefault();
+  if (player.lane > 0) {
+    player.lane--;
+    player.x = getLaneX(player.lane);
+  }
+});
+
+document.getElementById("rightBtn").addEventListener("touchstart", e => {
+  e.preventDefault();
+  if (player.lane < 3) {
+    player.lane++;
+    player.x = getLaneX(player.lane);
+  }
+});
 
 // START
 canvas.addEventListener("click", () => {
@@ -114,7 +109,6 @@ canvas.addEventListener("click", () => {
 function resetGame() {
   player.lane = 1;
   player.x = getLaneX(1);
-  player.targetX = player.x;
 
   traffic = [];
   speed = 6;
@@ -128,7 +122,7 @@ function spawnTraffic() {
   let lane = Math.floor(Math.random() * 4);
 
   for (let t of traffic) {
-    if (t.lane === lane && t.y < 500) return;
+    if (t.lane === lane && t.y < 450) return;
   }
 
   let img = trafficImgs[Math.floor(Math.random() * trafficImgs.length)];
@@ -143,13 +137,13 @@ function spawnTraffic() {
   });
 }
 
-// PERFECT COLLISION (NO FALSE CRASH)
+// PERFECT COLLISION (FIXED)
 function checkCollision(a, b) {
   return (
-    a.x < b.x + b.width &&
-    a.x + carWidth > b.x &&
-    a.y < b.y + b.height &&
-    a.y + carHeight > b.y
+    a.x + carWidth * 0.2 < b.x + b.width * 0.8 &&
+    a.x + carWidth * 0.8 > b.x + b.width * 0.2 &&
+    a.y + carHeight * 0.3 < b.y + b.height * 0.8 &&
+    a.y + carHeight * 0.8 > b.y + b.height * 0.3
   );
 }
 
@@ -157,20 +151,17 @@ function checkCollision(a, b) {
 function update() {
   if (gameState !== "playing") return;
 
-  // smooth movement (NO JUMP)
-  player.x += (player.targetX - player.x) * 0.2;
-
   speed += 0.002;
   roadOffset -= speed;
 
-  // score
+  // SCORE
   let now = Date.now();
   if (now - lastScoreTime > 500) {
     score++;
     lastScoreTime = now;
   }
 
-  // traffic
+  // TRAFFIC
   for (let t of traffic) {
     t.y += speed;
 
@@ -291,6 +282,4 @@ function gameLoop() {
 // INIT
 resizeCanvas();
 player.x = getLaneX(1);
-player.targetX = player.x;
-
 gameLoop();
