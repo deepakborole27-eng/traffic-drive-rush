@@ -4,25 +4,18 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// 🔊 VOICE FUNCTION
+// 🔊 ENGINE SOUND (works even if you can't hear now)
+const engineSound = new Audio("engine.mp3");
+engineSound.loop = true;
+engineSound.volume = 0.5;
+
+// 🤖 VOICE
 function speak(text) {
   const msg = new SpeechSynthesisUtterance(text);
   msg.rate = 0.8;
   msg.pitch = 0.4;
-  msg.lang = "en-US";
-
-  const voices = speechSynthesis.getVoices();
-  const robotVoice = voices.find(v =>
-    v.name.includes("Google") || v.name.includes("Microsoft")
-  );
-
-  if (robotVoice) msg.voice = robotVoice;
-
   speechSynthesis.speak(msg);
 }
-
-// Fix for loading voices
-window.speechSynthesis.onvoiceschanged = () => {};
 
 // Images
 const carImg = new Image();
@@ -46,7 +39,7 @@ let keys = {};
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
-// Mobile controls
+// 📱 Mobile controls
 let touchLeft = false;
 let touchRight = false;
 
@@ -72,12 +65,20 @@ let lastScoreTime = 0;
 let traffic = [];
 let spawnCooldown = 20;
 
-// START / RESTART
+// 💥 Shake
+let shakeTime = 0;
+
+// Start / Restart
 canvas.addEventListener("click", () => {
   if (gameState !== "playing") {
     resetGame();
     gameState = "playing";
+
     speak("Game Started");
+
+    // play engine (browser needs click)
+    engineSound.currentTime = 0;
+    engineSound.play().catch(() => {});
   }
 });
 
@@ -127,27 +128,28 @@ function update() {
 
   player.x = Math.max(roadX, Math.min(roadX + roadWidth - 200, player.x));
 
-  // Speed increase
+  // Speed
   speed += 0.003;
   roadOffset -= speed;
 
-  // Score system (1 point every 0.5 sec, faster with speed)
+  // Score (1 point / 0.5 sec)
   let now = Date.now();
-  let interval = 500 - speed * 10;
-  if (interval < 200) interval = 200;
-
-  if (now - lastScoreTime > interval) {
+  if (now - lastScoreTime > 500) {
     score++;
     lastScoreTime = now;
   }
 
-  // Traffic movement
+  // Traffic
   for (let t of traffic) {
     t.y += speed;
 
     if (checkCollision(player, t)) {
       speak("Game Over");
       gameState = "gameover";
+
+      engineSound.pause();
+
+      shakeTime = 20;
 
       if (score > highScore) {
         highScore = score;
@@ -191,39 +193,49 @@ function drawRoad() {
   ctx.setLineDash([]);
 }
 
-// Draw player
-function drawPlayer() {
-  ctx.drawImage(carImg, player.x, player.y, 200, 220);
-}
+// Draw game
+function drawGame() {
+  ctx.save();
 
-// Draw traffic
-function drawTraffic() {
+  // 💥 Shake effect
+  if (shakeTime > 0) {
+    let dx = (Math.random() - 0.5) * 20;
+    let dy = (Math.random() - 0.5) * 20;
+    ctx.translate(dx, dy);
+    shakeTime--;
+  }
+
+  drawRoad();
+
+  ctx.drawImage(carImg, player.x, player.y, 200, 220);
+
   for (let t of traffic) {
     ctx.drawImage(t.img, t.x, t.y, t.width, t.height);
   }
-}
 
-// Draw score
-function drawScore() {
+  // Score
   ctx.fillStyle = "white";
   ctx.font = "28px Arial";
   ctx.fillText("Score: " + score, 20, 40);
   ctx.fillText("High: " + highScore, 20, 75);
+
+  ctx.restore();
 }
 
 // Start screen
 function drawStart() {
   drawRoad();
+
   ctx.fillStyle = "rgba(0,0,0,0.7)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
   ctx.fillStyle = "white";
   ctx.font = "60px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("TRAFFIC DRIVE RUSH", canvas.width/2, canvas.height/2 - 50);
+  ctx.fillText("TRAFFIC DRIVE RUSH", canvas.width/2, canvas.height/2);
 
   ctx.font = "25px Arial";
-  ctx.fillText("Tap to Start", canvas.width/2, canvas.height/2 + 20);
+  ctx.fillText("Tap to Start", canvas.width/2, canvas.height/2 + 60);
 }
 
 // Game over
@@ -239,9 +251,7 @@ function drawGameOver() {
   ctx.fillStyle = "white";
   ctx.font = "30px Arial";
   ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2);
-  ctx.fillText("High Score: " + highScore, canvas.width/2, canvas.height/2 + 40);
-
-  ctx.fillText("Tap to Restart", canvas.width/2, canvas.height/2 + 100);
+  ctx.fillText("Tap to Restart", canvas.width/2, canvas.height/2 + 60);
 }
 
 // Loop
@@ -252,15 +262,9 @@ function gameLoop() {
     drawStart();
   } else if (gameState === "playing") {
     update();
-    drawRoad();
-    drawPlayer();
-    drawTraffic();
-    drawScore();
+    drawGame();
   } else {
-    drawRoad();
-    drawPlayer();
-    drawTraffic();
-    drawScore();
+    drawGame();
     drawGameOver();
   }
 
