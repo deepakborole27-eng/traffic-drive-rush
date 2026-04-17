@@ -4,7 +4,7 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// 🔊 ENGINE SOUND (works even if you can't hear now)
+// 🔊 SOUND
 const engineSound = new Audio("engine.mp3");
 engineSound.loop = true;
 engineSound.volume = 0.5;
@@ -31,7 +31,9 @@ for (let i = 1; i <= 5; i++) {
 // Player
 let player = {
   x: canvas.width / 2 - 100,
-  y: canvas.height - 260
+  y: canvas.height - 260,
+  width: 200,
+  height: 220
 };
 
 // Controls
@@ -39,7 +41,7 @@ let keys = {};
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
-// 📱 Mobile controls
+// Mobile
 let touchLeft = false;
 let touchRight = false;
 
@@ -54,7 +56,7 @@ let gameState = "start";
 
 // Road
 let roadOffset = 0;
-let speed = 10;
+let speed = 9;
 
 // Score
 let score = 0;
@@ -63,20 +65,18 @@ let lastScoreTime = 0;
 
 // Traffic
 let traffic = [];
-let spawnCooldown = 20;
+let spawnCooldown = 30;
 
-// 💥 Shake
+// Shake
 let shakeTime = 0;
 
-// Start / Restart
+// START
 canvas.addEventListener("click", () => {
   if (gameState !== "playing") {
     resetGame();
     gameState = "playing";
 
     speak("Game Started");
-
-    // play engine (browser needs click)
     engineSound.currentTime = 0;
     engineSound.play().catch(() => {});
   }
@@ -86,12 +86,12 @@ function resetGame() {
   player.x = canvas.width / 2 - 100;
   traffic = [];
   score = 0;
-  speed = 10;
+  speed = 9;
   roadOffset = 0;
   lastScoreTime = Date.now();
 }
 
-// Spawn traffic
+// SAFE SPAWN
 function spawnTraffic() {
   const roadWidth = canvas.width * 0.5;
   const roadX = (canvas.width - roadWidth) / 2;
@@ -100,56 +100,59 @@ function spawnTraffic() {
   const lane = Math.floor(Math.random() * 4);
   let x = roadX + lane * laneWidth + (laneWidth - 200) / 2;
 
+  // prevent unfair spawn near player
+  for (let t of traffic) {
+    if (Math.abs(t.y - (-250)) < 300 && Math.abs(t.x - x) < 120) {
+      return;
+    }
+  }
+
   let img = trafficImgs[Math.floor(Math.random() * trafficImgs.length)];
 
   traffic.push({ x, y: -250, width: 200, height: 220, img });
 }
 
-// Collision
+// BETTER COLLISION
 function checkCollision(a, b) {
   return (
-    a.x < b.x + b.width - 40 &&
-    a.x + 200 > b.x + 40 &&
-    a.y < b.y + b.height - 40 &&
-    a.y + 200 > b.y + 40
+    a.x + 40 < b.x + b.width - 40 &&
+    a.x + a.width - 40 > b.x + 40 &&
+    a.y + 40 < b.y + b.height - 40 &&
+    a.y + a.height - 40 > b.y + 40
   );
 }
 
-// Update
+// UPDATE
 function update() {
   if (gameState !== "playing") return;
 
-  // Movement
-  if (keys["a"] || keys["ArrowLeft"] || touchLeft) player.x -= 8;
-  if (keys["d"] || keys["ArrowRight"] || touchRight) player.x += 8;
+  if (keys["a"] || keys["ArrowLeft"] || touchLeft) player.x -= 7;
+  if (keys["d"] || keys["ArrowRight"] || touchRight) player.x += 7;
 
   const roadWidth = canvas.width * 0.5;
   const roadX = (canvas.width - roadWidth) / 2;
 
-  player.x = Math.max(roadX, Math.min(roadX + roadWidth - 200, player.x));
+  player.x = Math.max(roadX, Math.min(roadX + roadWidth - player.width, player.x));
 
-  // Speed
-  speed += 0.003;
+  speed += 0.002;
   roadOffset -= speed;
 
-  // Score (1 point / 0.5 sec)
+  // score
   let now = Date.now();
   if (now - lastScoreTime > 500) {
     score++;
     lastScoreTime = now;
   }
 
-  // Traffic
+  // traffic
   for (let t of traffic) {
     t.y += speed;
 
     if (checkCollision(player, t)) {
       speak("Game Over");
       gameState = "gameover";
-
       engineSound.pause();
-
-      shakeTime = 20;
+      shakeTime = 25;
 
       if (score > highScore) {
         highScore = score;
@@ -160,15 +163,14 @@ function update() {
 
   traffic = traffic.filter(t => t.y < canvas.height + 200);
 
-  // Spawn
   spawnCooldown--;
   if (spawnCooldown <= 0) {
     spawnTraffic();
-    spawnCooldown = 18;
+    spawnCooldown = 25;
   }
 }
 
-// Draw road
+// DRAW ROAD
 function drawRoad() {
   const roadWidth = canvas.width * 0.5;
   const roadX = (canvas.width - roadWidth) / 2;
@@ -193,27 +195,25 @@ function drawRoad() {
   ctx.setLineDash([]);
 }
 
-// Draw game
+// DRAW GAME
 function drawGame() {
   ctx.save();
 
-  // 💥 Shake effect
   if (shakeTime > 0) {
-    let dx = (Math.random() - 0.5) * 20;
-    let dy = (Math.random() - 0.5) * 20;
+    let dx = (Math.random() - 0.5) * 15;
+    let dy = (Math.random() - 0.5) * 15;
     ctx.translate(dx, dy);
     shakeTime--;
   }
 
   drawRoad();
 
-  ctx.drawImage(carImg, player.x, player.y, 200, 220);
+  ctx.drawImage(carImg, player.x, player.y, player.width, player.height);
 
   for (let t of traffic) {
     ctx.drawImage(t.img, t.x, t.y, t.width, t.height);
   }
 
-  // Score
   ctx.fillStyle = "white";
   ctx.font = "28px Arial";
   ctx.fillText("Score: " + score, 20, 40);
@@ -222,7 +222,7 @@ function drawGame() {
   ctx.restore();
 }
 
-// Start screen
+// START SCREEN
 function drawStart() {
   drawRoad();
 
@@ -230,7 +230,7 @@ function drawStart() {
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
   ctx.fillStyle = "white";
-  ctx.font = "60px Arial";
+  ctx.font = "50px Arial";
   ctx.textAlign = "center";
   ctx.fillText("TRAFFIC DRIVE RUSH", canvas.width/2, canvas.height/2);
 
@@ -238,7 +238,7 @@ function drawStart() {
   ctx.fillText("Tap to Start", canvas.width/2, canvas.height/2 + 60);
 }
 
-// Game over
+// GAME OVER
 function drawGameOver() {
   ctx.fillStyle = "rgba(0,0,0,0.8)";
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -254,7 +254,7 @@ function drawGameOver() {
   ctx.fillText("Tap to Restart", canvas.width/2, canvas.height/2 + 60);
 }
 
-// Loop
+// LOOP
 function gameLoop() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
