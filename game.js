@@ -1,6 +1,9 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// ================== DEVICE DETECTION ==================
+let isMobile = window.innerWidth < 768;
+
 // ================== RESPONSIVE ==================
 let roadWidth, roadX, laneWidth;
 let carWidth, carHeight;
@@ -8,6 +11,8 @@ let carWidth, carHeight;
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+
+  isMobile = window.innerWidth < 768;
 
   roadWidth = canvas.width * 0.7;
   roadX = (canvas.width - roadWidth) / 2;
@@ -62,7 +67,7 @@ let shakeTime = 0;
 
 // ================== CONTROLS ==================
 
-// PC (smooth hold)
+// PC
 let moveLeft = false;
 let moveRight = false;
 
@@ -79,13 +84,12 @@ document.addEventListener("keyup", e => {
 // MOBILE (drag)
 let isTouching = false;
 
-canvas.addEventListener("touchstart", e => {
+canvas.addEventListener("touchstart", () => {
   isTouching = true;
 });
 
 canvas.addEventListener("touchmove", e => {
   if (!isTouching) return;
-
   let touch = e.touches[0];
   player.targetX = touch.clientX - carWidth / 2;
 });
@@ -163,10 +167,10 @@ function update() {
   if (moveLeft) player.targetX -= 8;
   if (moveRight) player.targetX += 8;
 
-  // Smooth movement
+  // Smooth move
   player.x += (player.targetX - player.x) * 0.2;
 
-  // Clamp inside road
+  // Clamp
   player.x = Math.max(roadX, Math.min(roadX + roadWidth - carWidth, player.x));
 
   speed += 0.002;
@@ -179,7 +183,7 @@ function update() {
     lastScoreTime = now;
   }
 
-  // Lane rule (no staying between lanes)
+  // Lane rule
   if (isBetweenLanes()) {
     midLaneTime += 1 / 60;
     if (midLaneTime > 10) {
@@ -190,7 +194,7 @@ function update() {
     midLaneTime = 0;
   }
 
-  // Traffic
+  // Traffic movement
   for (let t of traffic) {
     t.y += speed;
 
@@ -208,9 +212,19 @@ function update() {
 
   traffic = traffic.filter(t => t.y < canvas.height + 200);
 
+  // ================== MOBILE EXTRA TRAFFIC ==================
   spawnTimer++;
-  if (spawnTimer > 70) {
+
+  let spawnLimit = isMobile ? 40 : 70; // 👈 MORE cars only on mobile
+
+  if (spawnTimer > spawnLimit) {
     spawnTraffic();
+
+    // EXTRA car sometimes on mobile
+    if (isMobile && Math.random() < 0.5) {
+      spawnTraffic();
+    }
+
     spawnTimer = 0;
   }
 }
