@@ -1,7 +1,7 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// ================== DEVICE DETECTION ==================
+// DEVICE DETECTION
 let isMobile = window.innerWidth < 768;
 
 // ================== RESPONSIVE ==================
@@ -14,7 +14,9 @@ function resizeCanvas() {
 
   isMobile = window.innerWidth < 768;
 
-  roadWidth = canvas.width * 0.7;
+  // 🔥 DIFFERENT ROAD WIDTH
+  roadWidth = isMobile ? canvas.width * 0.7 : canvas.width * 0.5;
+
   roadX = (canvas.width - roadWidth) / 2;
   laneWidth = roadWidth / 4;
 
@@ -25,7 +27,7 @@ function resizeCanvas() {
 }
 window.addEventListener("resize", resizeCanvas);
 
-// ================== VOICE ==================
+// VOICE
 function speak(text) {
   const msg = new SpeechSynthesisUtterance(text);
   msg.rate = 0.85;
@@ -33,7 +35,7 @@ function speak(text) {
   speechSynthesis.speak(msg);
 }
 
-// ================== IMAGES ==================
+// IMAGES
 const carImg = new Image();
 carImg.src = "car.png";
 
@@ -44,14 +46,14 @@ for (let i = 1; i <= 5; i++) {
   trafficImgs.push(img);
 }
 
-// ================== PLAYER ==================
+// PLAYER
 let player = {
   x: 0,
   y: 0,
   targetX: 0
 };
 
-// ================== GAME ==================
+// GAME
 let gameState = "start";
 let speed = 6;
 let roadOffset = 0;
@@ -67,7 +69,7 @@ let shakeTime = 0;
 
 // ================== CONTROLS ==================
 
-// PC
+// PC (A / D)
 let moveLeft = false;
 let moveRight = false;
 
@@ -81,7 +83,7 @@ document.addEventListener("keyup", e => {
   if (e.key === "d") moveRight = false;
 });
 
-// MOBILE (drag)
+// MOBILE DRAG (NO BUTTONS)
 let isTouching = false;
 
 canvas.addEventListener("touchstart", () => {
@@ -98,7 +100,7 @@ canvas.addEventListener("touchend", () => {
   isTouching = false;
 });
 
-// ================== START ==================
+// START
 canvas.addEventListener("click", () => {
   if (gameState !== "playing") {
     resetGame();
@@ -107,7 +109,7 @@ canvas.addEventListener("click", () => {
   }
 });
 
-// ================== RESET ==================
+// RESET
 function resetGame() {
   player.x = roadX + roadWidth / 2 - carWidth / 2;
   player.targetX = player.x;
@@ -119,7 +121,7 @@ function resetGame() {
   lastScoreTime = Date.now();
 }
 
-// ================== SPAWN ==================
+// SPAWN
 function spawnTraffic() {
   const lane = Math.floor(Math.random() * 4);
   const x = roadX + lane * laneWidth + (laneWidth - carWidth) / 2;
@@ -141,7 +143,7 @@ function spawnTraffic() {
   });
 }
 
-// ================== COLLISION ==================
+// COLLISION
 function checkCollision(a, b) {
   return (
     a.x + carWidth * 0.25 < b.x + b.width * 0.75 &&
@@ -151,7 +153,7 @@ function checkCollision(a, b) {
   );
 }
 
-// ================== LANE RULE ==================
+// MID LANE RULE
 let midLaneTime = 0;
 
 function isBetweenLanes() {
@@ -159,7 +161,7 @@ function isBetweenLanes() {
   return Math.abs(laneIndex - Math.round(laneIndex)) > 0.2;
 }
 
-// ================== UPDATE ==================
+// UPDATE
 function update() {
   if (gameState !== "playing") return;
 
@@ -167,23 +169,23 @@ function update() {
   if (moveLeft) player.targetX -= 8;
   if (moveRight) player.targetX += 8;
 
-  // Smooth move
+  // smooth move
   player.x += (player.targetX - player.x) * 0.2;
 
-  // Clamp
+  // clamp
   player.x = Math.max(roadX, Math.min(roadX + roadWidth - carWidth, player.x));
 
   speed += 0.002;
   roadOffset -= speed;
 
-  // Score
+  // score
   let now = Date.now();
   if (now - lastScoreTime > 500) {
     score++;
     lastScoreTime = now;
   }
 
-  // Lane rule
+  // mid lane rule
   if (isBetweenLanes()) {
     midLaneTime += 1 / 60;
     if (midLaneTime > 10) {
@@ -194,7 +196,7 @@ function update() {
     midLaneTime = 0;
   }
 
-  // Traffic movement
+  // traffic
   for (let t of traffic) {
     t.y += speed;
 
@@ -212,15 +214,14 @@ function update() {
 
   traffic = traffic.filter(t => t.y < canvas.height + 200);
 
-  // ================== MOBILE EXTRA TRAFFIC ==================
+  // 🔥 MOBILE MORE TRAFFIC ONLY
   spawnTimer++;
 
-  let spawnLimit = isMobile ? 40 : 70; // 👈 MORE cars only on mobile
+  let spawnLimit = isMobile ? 40 : 70;
 
   if (spawnTimer > spawnLimit) {
     spawnTraffic();
 
-    // EXTRA car sometimes on mobile
     if (isMobile && Math.random() < 0.5) {
       spawnTraffic();
     }
@@ -229,7 +230,7 @@ function update() {
   }
 }
 
-// ================== DRAW ==================
+// DRAW
 function drawRoad() {
   ctx.fillStyle = "green";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -275,52 +276,4 @@ function drawGame() {
   ctx.restore();
 }
 
-function drawStart() {
-  drawRoad();
-  ctx.fillStyle = "rgba(0,0,0,0.7)";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  ctx.fillStyle = "white";
-  ctx.font = "40px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("TRAFFIC DRIVE RUSH", canvas.width/2, canvas.height/2);
-
-  ctx.font = "20px Arial";
-  ctx.fillText("Tap to Start", canvas.width/2, canvas.height/2 + 50);
-}
-
-function drawGameOver() {
-  ctx.fillStyle = "rgba(0,0,0,0.8)";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  ctx.fillStyle = "red";
-  ctx.font = "50px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2 - 40);
-
-  ctx.fillStyle = "white";
-  ctx.font = "25px Arial";
-  ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2);
-  ctx.fillText("Tap to Restart", canvas.width/2, canvas.height/2 + 50);
-}
-
-// LOOP
-function gameLoop() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  if (gameState === "start") drawStart();
-  else if (gameState === "playing") {
-    update();
-    drawGame();
-  } else {
-    drawGame();
-    drawGameOver();
-  }
-
-  requestAnimationFrame(gameLoop);
-}
-
-// INIT
-resizeCanvas();
-resetGame();
-gameLoop();
+function
