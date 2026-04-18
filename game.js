@@ -1,23 +1,19 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// DEVICE DETECTION
+// DEVICE
 let isMobile = window.innerWidth < 768;
 
-// ================== VARIABLES ==================
+// VARIABLES
 let roadWidth, roadX, laneWidth;
 let carWidth, carHeight;
 
-// ================== PLAYER ==================
-let player = {
-  x: 0,
-  y: 0,
-  targetX: 0
-};
+let player = { x: 0, y: 0, targetX: 0 };
 
-// ================== GAME ==================
 let gameState = "start";
-let speed = 6;
+let baseSpeed = 6;
+let speed = baseSpeed;
+
 let roadOffset = 0;
 
 let score = 0;
@@ -28,6 +24,9 @@ let traffic = [];
 let spawnTimer = 0;
 let shakeTime = 0;
 
+// LEVEL SYSTEM
+let level = 1;
+
 // ================== RESIZE ==================
 function resizeCanvas() {
   canvas.width = window.innerWidth;
@@ -35,16 +34,14 @@ function resizeCanvas() {
 
   isMobile = window.innerWidth < 768;
 
-  // 🚧 ROAD
   roadWidth = isMobile ? canvas.width * 0.7 : canvas.width * 0.5;
   roadX = (canvas.width - roadWidth) / 2;
   laneWidth = roadWidth / 4;
 
-  // 🚗 CAR SIZE (KEY CHANGE)
   if (isMobile) {
-    carWidth = laneWidth * 0.6;   // SAME mobile
+    carWidth = laneWidth * 0.6;
   } else {
-    carWidth = laneWidth * 0.9;   // BIGGER on PC
+    carWidth = laneWidth * 0.9;
   }
 
   carHeight = carWidth * 1.3;
@@ -53,7 +50,7 @@ function resizeCanvas() {
 }
 window.addEventListener("resize", resizeCanvas);
 
-// ================== VOICE ==================
+// VOICE
 function speak(text) {
   const msg = new SpeechSynthesisUtterance(text);
   msg.rate = 0.85;
@@ -61,7 +58,7 @@ function speak(text) {
   speechSynthesis.speak(msg);
 }
 
-// ================== IMAGES ==================
+// IMAGES
 const carImg = new Image();
 carImg.src = "car.png";
 
@@ -72,9 +69,7 @@ for (let i = 1; i <= 5; i++) {
   trafficImgs.push(img);
 }
 
-// ================== CONTROLS ==================
-
-// PC
+// CONTROLS
 let moveLeft = false;
 let moveRight = false;
 
@@ -88,7 +83,7 @@ document.addEventListener("keyup", e => {
   if (e.key === "d") moveRight = false;
 });
 
-// MOBILE DRAG
+// MOBILE
 let isTouching = false;
 
 canvas.addEventListener("touchstart", () => {
@@ -105,7 +100,7 @@ canvas.addEventListener("touchend", () => {
   isTouching = false;
 });
 
-// ================== START ==================
+// START
 canvas.addEventListener("click", () => {
   if (gameState !== "playing") {
     resetGame();
@@ -114,28 +109,23 @@ canvas.addEventListener("click", () => {
   }
 });
 
-// ================== RESET ==================
+// RESET
 function resetGame() {
   player.x = roadX + roadWidth / 2 - carWidth / 2;
   player.targetX = player.x;
 
   traffic = [];
-  speed = 6;
+  speed = baseSpeed;
   score = 0;
+  level = 1;
   roadOffset = 0;
   lastScoreTime = Date.now();
 }
 
-// ================== SPAWN ==================
+// SPAWN (MORE OBSTACLES)
 function spawnTraffic() {
-  const lane = Math.floor(Math.random() * 4);
-  const x = roadX + lane * laneWidth + (laneWidth - carWidth) / 2;
-
-  for (let t of traffic) {
-    if (Math.abs(t.y - (-200)) < 400 && Math.abs(t.x - x) < laneWidth) {
-      return;
-    }
-  }
+  let lane = Math.floor(Math.random() * 4);
+  let x = roadX + lane * laneWidth + (laneWidth - carWidth) / 2;
 
   let img = trafficImgs[Math.floor(Math.random() * trafficImgs.length)];
 
@@ -148,7 +138,7 @@ function spawnTraffic() {
   });
 }
 
-// ================== COLLISION ==================
+// COLLISION
 function checkCollision(a, b) {
   return (
     a.x + carWidth * 0.25 < b.x + b.width * 0.75 &&
@@ -158,44 +148,33 @@ function checkCollision(a, b) {
   );
 }
 
-// ================== MID LANE ==================
-let midLaneTime = 0;
-
-function isBetweenLanes() {
-  let laneIndex = (player.x - roadX) / laneWidth;
-  return Math.abs(laneIndex - Math.round(laneIndex)) > 0.2;
-}
-
-// ================== UPDATE ==================
+// UPDATE
 function update() {
   if (gameState !== "playing") return;
 
-  if (moveLeft) player.targetX -= 8;
-  if (moveRight) player.targetX += 8;
+  // MOVEMENT
+  if (moveLeft) player.targetX -= 9;
+  if (moveRight) player.targetX += 9;
 
   player.x += (player.targetX - player.x) * 0.2;
 
   player.x = Math.max(roadX, Math.min(roadX + roadWidth - carWidth, player.x));
 
-  speed += 0.002;
+  // LEVEL SYSTEM
+  level = Math.floor(score / 10) + 1;
+
+  speed = baseSpeed + level * 0.5;
+
   roadOffset -= speed;
 
+  // SCORE
   let now = Date.now();
   if (now - lastScoreTime > 500) {
     score++;
     lastScoreTime = now;
   }
 
-  if (isBetweenLanes()) {
-    midLaneTime += 1 / 60;
-    if (midLaneTime > 10) {
-      gameState = "gameover";
-      speak("Stay in your lane");
-    }
-  } else {
-    midLaneTime = 0;
-  }
-
+  // TRAFFIC
   for (let t of traffic) {
     t.y += speed;
 
@@ -213,17 +192,24 @@ function update() {
 
   traffic = traffic.filter(t => t.y < canvas.height + 200);
 
+  // 🔥 MORE SPAWN WITH LEVEL
   spawnTimer++;
-  let spawnLimit = isMobile ? 40 : 70;
 
-  if (spawnTimer > spawnLimit) {
+  let spawnRate = isMobile ? 45 : 65;
+  spawnRate -= level * 2; // faster spawn each level
+
+  if (spawnTimer > spawnRate) {
     spawnTraffic();
-    if (isMobile && Math.random() < 0.5) spawnTraffic();
+
+    // extra cars at higher level
+    if (level > 3) spawnTraffic();
+    if (level > 6 && Math.random() < 0.6) spawnTraffic();
+
     spawnTimer = 0;
   }
 }
 
-// ================== DRAW ==================
+// DRAW ROAD
 function drawRoad() {
   ctx.fillStyle = "green";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -245,6 +231,7 @@ function drawRoad() {
   ctx.setLineDash([]);
 }
 
+// DRAW GAME
 function drawGame() {
   ctx.save();
 
@@ -262,13 +249,15 @@ function drawGame() {
   }
 
   ctx.fillStyle = "white";
-  ctx.font = "24px Arial";
+  ctx.font = "22px Arial";
   ctx.fillText("Score: " + score, 20, 40);
   ctx.fillText("High: " + highScore, 20, 70);
+  ctx.fillText("Level: " + level, 20, 100);
 
   ctx.restore();
 }
 
+// START SCREEN
 function drawStart() {
   drawRoad();
   ctx.fillStyle = "rgba(0,0,0,0.7)";
@@ -283,6 +272,7 @@ function drawStart() {
   ctx.fillText("Tap to Start", canvas.width/2, canvas.height/2 + 50);
 }
 
+// GAME OVER
 function drawGameOver() {
   ctx.fillStyle = "rgba(0,0,0,0.8)";
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -295,7 +285,8 @@ function drawGameOver() {
   ctx.fillStyle = "white";
   ctx.font = "25px Arial";
   ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2);
-  ctx.fillText("Tap to Restart", canvas.width/2, canvas.height/2 + 50);
+  ctx.fillText("Level: " + level, canvas.width/2, canvas.height/2 + 40);
+  ctx.fillText("Tap to Restart", canvas.width/2, canvas.height/2 + 90);
 }
 
 // LOOP
