@@ -14,13 +14,21 @@ function resizeCanvas() {
 
   isMobile = window.innerWidth < 768;
 
-  // ✅ DIFFERENT ROAD WIDTH
+  // ROAD WIDTH
   roadWidth = isMobile ? canvas.width * 0.7 : canvas.width * 0.5;
 
   roadX = (canvas.width - roadWidth) / 2;
   laneWidth = roadWidth / 4;
 
-  carWidth = laneWidth * 0.6;
+  // 🚗 CAR SIZE (DIFFERENT FOR PC & MOBILE)
+  if (isMobile) {
+    // 📱 SAME as before
+    carWidth = laneWidth * 0.6;
+  } else {
+    // 💻 BIGGER CAR
+    carWidth = laneWidth * 0.8;
+  }
+
   carHeight = carWidth * 1.2;
 
   player.y = canvas.height - carHeight - 20;
