@@ -1,7 +1,10 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// RESPONSIVE
+// ================== RESPONSIVE ==================
+let roadWidth, roadX, laneWidth;
+let carWidth, carHeight;
+
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -17,7 +20,7 @@ function resizeCanvas() {
 }
 window.addEventListener("resize", resizeCanvas);
 
-// VOICE
+// ================== VOICE ==================
 function speak(text) {
   const msg = new SpeechSynthesisUtterance(text);
   msg.rate = 0.85;
@@ -25,7 +28,7 @@ function speak(text) {
   speechSynthesis.speak(msg);
 }
 
-// IMAGES
+// ================== IMAGES ==================
 const carImg = new Image();
 carImg.src = "car.png";
 
@@ -36,18 +39,14 @@ for (let i = 1; i <= 5; i++) {
   trafficImgs.push(img);
 }
 
-// VARIABLES
-let roadWidth, roadX, laneWidth;
-let carWidth, carHeight;
-
-// PLAYER
+// ================== PLAYER ==================
 let player = {
-  lane: 1,
   x: 0,
-  y: 0
+  y: 0,
+  targetX: 0
 };
 
-// GAME STATE
+// ================== GAME ==================
 let gameState = "start";
 let speed = 6;
 let roadOffset = 0;
@@ -61,42 +60,41 @@ let spawnTimer = 0;
 
 let shakeTime = 0;
 
-// LANE POSITION
-function getLaneX(lane) {
-  return roadX + lane * laneWidth + (laneWidth - carWidth) / 2;
-}
+// ================== CONTROLS ==================
 
-// CONTROLS (INSTANT)
+// PC (smooth hold)
+let moveLeft = false;
+let moveRight = false;
+
 document.addEventListener("keydown", e => {
-  if (e.key === "ArrowLeft" && player.lane > 0) {
-    player.lane--;
-    player.x = getLaneX(player.lane);
-  }
-
-  if (e.key === "ArrowRight" && player.lane < 3) {
-    player.lane++;
-    player.x = getLaneX(player.lane);
-  }
+  if (e.key === "a") moveLeft = true;
+  if (e.key === "d") moveRight = true;
 });
 
-// MOBILE (FIXED)
-document.getElementById("leftBtn").addEventListener("touchstart", e => {
-  e.preventDefault();
-  if (player.lane > 0) {
-    player.lane--;
-    player.x = getLaneX(player.lane);
-  }
+document.addEventListener("keyup", e => {
+  if (e.key === "a") moveLeft = false;
+  if (e.key === "d") moveRight = false;
 });
 
-document.getElementById("rightBtn").addEventListener("touchstart", e => {
-  e.preventDefault();
-  if (player.lane < 3) {
-    player.lane++;
-    player.x = getLaneX(player.lane);
-  }
+// MOBILE (drag)
+let isTouching = false;
+
+canvas.addEventListener("touchstart", e => {
+  isTouching = true;
 });
 
-// START
+canvas.addEventListener("touchmove", e => {
+  if (!isTouching) return;
+
+  let touch = e.touches[0];
+  player.targetX = touch.clientX - carWidth / 2;
+});
+
+canvas.addEventListener("touchend", () => {
+  isTouching = false;
+});
+
+// ================== START ==================
 canvas.addEventListener("click", () => {
   if (gameState !== "playing") {
     resetGame();
@@ -105,10 +103,10 @@ canvas.addEventListener("click", () => {
   }
 });
 
-// RESET
+// ================== RESET ==================
 function resetGame() {
-  player.lane = 1;
-  player.x = getLaneX(1);
+  player.x = roadX + roadWidth / 2 - carWidth / 2;
+  player.targetX = player.x;
 
   traffic = [];
   speed = 6;
@@ -117,51 +115,82 @@ function resetGame() {
   lastScoreTime = Date.now();
 }
 
-// SAFE SPAWN
+// ================== SPAWN ==================
 function spawnTraffic() {
-  let lane = Math.floor(Math.random() * 4);
+  const lane = Math.floor(Math.random() * 4);
+  const x = roadX + lane * laneWidth + (laneWidth - carWidth) / 2;
 
   for (let t of traffic) {
-    if (t.lane === lane && t.y < 450) return;
+    if (Math.abs(t.y - (-200)) < 400 && Math.abs(t.x - x) < laneWidth) {
+      return;
+    }
   }
 
   let img = trafficImgs[Math.floor(Math.random() * trafficImgs.length)];
 
   traffic.push({
-    lane: lane,
-    x: getLaneX(lane),
+    x,
     y: -carHeight - 100,
     width: carWidth,
     height: carHeight,
-    img: img
+    img
   });
 }
 
-// PERFECT COLLISION (FIXED)
+// ================== COLLISION ==================
 function checkCollision(a, b) {
   return (
-    a.x + carWidth * 0.2 < b.x + b.width * 0.8 &&
-    a.x + carWidth * 0.8 > b.x + b.width * 0.2 &&
+    a.x + carWidth * 0.25 < b.x + b.width * 0.75 &&
+    a.x + carWidth * 0.75 > b.x + b.width * 0.25 &&
     a.y + carHeight * 0.3 < b.y + b.height * 0.8 &&
     a.y + carHeight * 0.8 > b.y + b.height * 0.3
   );
 }
 
-// UPDATE
+// ================== LANE RULE ==================
+let midLaneTime = 0;
+
+function isBetweenLanes() {
+  let laneIndex = (player.x - roadX) / laneWidth;
+  return Math.abs(laneIndex - Math.round(laneIndex)) > 0.2;
+}
+
+// ================== UPDATE ==================
 function update() {
   if (gameState !== "playing") return;
+
+  // PC movement
+  if (moveLeft) player.targetX -= 8;
+  if (moveRight) player.targetX += 8;
+
+  // Smooth movement
+  player.x += (player.targetX - player.x) * 0.2;
+
+  // Clamp inside road
+  player.x = Math.max(roadX, Math.min(roadX + roadWidth - carWidth, player.x));
 
   speed += 0.002;
   roadOffset -= speed;
 
-  // SCORE
+  // Score
   let now = Date.now();
   if (now - lastScoreTime > 500) {
     score++;
     lastScoreTime = now;
   }
 
-  // TRAFFIC
+  // Lane rule (no staying between lanes)
+  if (isBetweenLanes()) {
+    midLaneTime += 1 / 60;
+    if (midLaneTime > 10) {
+      gameState = "gameover";
+      speak("Stay in your lane");
+    }
+  } else {
+    midLaneTime = 0;
+  }
+
+  // Traffic
   for (let t of traffic) {
     t.y += speed;
 
@@ -186,7 +215,7 @@ function update() {
   }
 }
 
-// DRAW ROAD
+// ================== DRAW ==================
 function drawRoad() {
   ctx.fillStyle = "green";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -208,7 +237,6 @@ function drawRoad() {
   ctx.setLineDash([]);
 }
 
-// DRAW GAME
 function drawGame() {
   ctx.save();
 
@@ -233,7 +261,6 @@ function drawGame() {
   ctx.restore();
 }
 
-// UI
 function drawStart() {
   drawRoad();
   ctx.fillStyle = "rgba(0,0,0,0.7)";
@@ -281,5 +308,5 @@ function gameLoop() {
 
 // INIT
 resizeCanvas();
-player.x = getLaneX(1);
+resetGame();
 gameLoop();
